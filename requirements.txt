@@ -1,0 +1,5 @@
+# python 3.10.4 for arm64
+# arm64 Apple M1
+pandas~=1.4.3
+githubdata~=20220817
+mirutil~=20220817.1
