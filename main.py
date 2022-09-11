@@ -1,83 +1,114 @@
-##
-
 """
 
     """
 
-##
-
+import json
 import pandas as pd
 
-from githubdata import GithubData
-from mirutil import funcs as mf
+from githubdata import GithubData , get_data_from_github
+from mirutil.df_utils import save_as_prq_wo_index as sprq
 
 
-repo_url = 'https://github.com/imahdimir/raw-d-Listed-Firms-in-IFB'
-btic_repo_url = 'https://github.com/imahdimir/d-uniq-BaseTickers'
+class GDUrl :
+    with open('gdu.json' , 'r') as fi :
+        gj = json.load(fi)
 
-namaad = 'نماد'
-naam = 'نام شرکت'
-btick = 'BaseTicker'
-cname = 'CompanyName'
+    cur = gj['cur']
+    src0 = gj['src0']
+    src1 = gj['src1']
+    src2 = gj['src2']
+    src3 = gj['src3']
+    src4 = gj['src4']
+    src5 = gj['src5']
+    src6 = gj['src6']
+    trg = gj['trg']
+
+gu = GDUrl()
+
+class ColName :
+    radif = 'ردیف'
+    namaad = 'نماد'
+    naam = 'نام شرکت'
+    btick = 'BaseTicker'
+    cname = 'CompanyName'
+    ftic = 'FirmTicker'
+
+c = ColName()
 
 def main() :
+    pass
 
-  pass
+    ##
+    df = pd.DataFrame()
 
-  ##
-  repo = GithubData(repo_url)
-  repo.clone_overwrite_last_version()
-  ##
-  fns = {
-      "IFB-Bazar-e-Paye-Zard"    : None ,
-      "IFB-Bazar-e-Avval"        : None ,
-      "IFB-Bazar-e-SME"          : None ,
-      "IFB-Bazar-e-Paye-Ghermez" : None ,
-      "IFB-Bazar-e-Paye-Narenji" : None ,
-      "IFB-Bazar-e-Dovvom"       : None ,
-      }
+    for gdu in [gu.src0 , gu.src1 , gu.src2 , gu.src3 , gu.src4 , gu.src5] :
+        _df = get_data_from_github(gdu)
 
-  ##
-  df = pd.DataFrame()
-  for fn in fns.keys() :
-    _df = pd.read_excel(repo.local_path / f'{fn}.xlsx')
-    df = pd.concat([df , _df])
-  ##
-  df = df.drop(columns = 'ردیف')
-  ##
-  df = df.dropna(subset = namaad)
-  ##
-  df[namaad] = df[namaad].apply(mf.norm_fa_str)
-  ##
-  df = df[[namaad , naam]]
-  ##
+        df = pd.concat([df , _df] , axis = 0 , ignore_index = True)
 
-  btic_repo = GithubData(btic_repo_url)
-  btic_repo.clone_overwrite_last_version()
-  ##
-  bdfpn = btic_repo.data_fps[0]
-  bdf = pd.read_parquet(bdfpn)
-  bdf = bdf.reset_index()
-  ##
-  bdf = bdf.merge(df , left_on = btick , right_on = namaad , how = 'left')
-  ##
-  msk = bdf[cname].isna()
-  bdf.loc[msk , cname] = bdf[naam]
-  ##
-  msk = bdf[cname].isna()
-  df1 = bdf[msk]
-  ##
-  bdf = bdf[[btick , cname]]
-  bdf = bdf.set_index(btick)
-  ##
-  bdf.to_parquet(bdfpn)
-  ##
-  commit_msg = 'Filled null CompanyName from IFB raw data in repo: https://github.com/imahdimir/raw-d-Listed-Firms-in-IFB'
-  btic_repo.commit_and_push_to_github_data_target(commit_msg)
+    ##
 
-  ##
-  repo.rmdir()
-  btic_repo.rmdir()
+    df = df[[c.naam , c.namaad]]
+    ##
+    df = df.dropna()
+    ##
+
+    gds = GithubData(gu.src6)
+    gds.overwriting_clone()
+    ##
+    ds = gds.read_data()
+
+    ##
+
+    da = ds.merge(df , left_on = c.ftic , right_on = c.namaad , how = 'left')
+    ##
+
+    da = da[[c.ftic , c.naam]]
+    ##
+    da = da.dropna()
+    ##
+    da = da.rename(
+            columns = {
+                    c.naam : c.cname
+                    }
+            )
+    ##
+
+    gdt = GithubData(gu.trg)
+    gdt.overwriting_clone()
+    ##
+    dft = gdt.read_data()
+    ##
+
+    dft = pd.concat([dft , da] , axis = 0 , ignore_index = True)
+
+    ##
+    dft = dft.drop_duplicates()
+    ##
+
+    assert dft[c.cname].is_unique
+
+    ##
+    sprq(dft , gdt.data_fp)
+
+    ##
+    msg = 'added 2 data by: '
+    msg += gu.cur
+
+    ##
+
+    gdt.commit_and_push(msg)
+
+    ##
+
+    gdt.rmdir()
+    gds.rmdir()
 
 
-  ##
+    ##
+
+##
+if __name__ == '__main__' :
+    main()
+
+##
